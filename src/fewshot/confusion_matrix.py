@@ -24,5 +24,5 @@ def create_confusion_matrix(y_true_test, y_preds_test, save_dir):
     plt.ylabel('True labels')
     plt.title('Confusion matrix - Test')
     plt.tight_layout()
-    plt.savefig(save_dir + f'confusion_matrix_6C.jpeg')
+    plt.savefig(save_dir + f'confusion_matrix.jpeg')
     plt.show()

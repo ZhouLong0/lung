@@ -68,7 +68,6 @@ class Evaluator:
         fileHandler.setFormatter(formatter)
         streamHandler = logging.StreamHandler()
         streamHandler.setFormatter(formatter)
-
         l.setLevel(logging.INFO)
         l.addHandler(fileHandler)
         l.addHandler(streamHandler)
@@ -80,15 +79,6 @@ class Evaluator:
         super_logger.info(
             f"This is an informational message:  Test_{random_number} Started..."
         )
-        """
-        Run the evaluation over all the tasks
-        inputs:
-            model : The loaded model containing the feature extractor
-            args : All parameters
-
-        returns :
-            results : List of the mean accuracy for each number of support shots
-        """
         self.logger.info(
             "=> Runnning full evaluation with method: {}".format(self.args.name_method)
         )
@@ -116,7 +106,6 @@ class Evaluator:
         else:
             print("Unknown color normalisation:", self.args.normalisation_couleur)
             raise Exception("Unknown color normalisation")
-            return
 
         ## we want to create sliding_windows in the entire query image for the prediction
         # if self.args.sampling == "sliding_window":  # predict on WSI
@@ -132,21 +121,8 @@ class Evaluator:
         df_query = pd.read_csv(self.args.split_dir + self.args.support_split_file + '.csv').sample(frac = 1)
         df_support = pd.read_csv(self.args.split_dir + self.args.support_split_file + '.csv').sample(frac = 1)
 
-        ## Build the datasets
-        dataset = {}
-
         support_dataset = LungSet(df_support, self.args.support_data_dir, file_name=True)
         query_dataset = LungSet(df_query, self.args.query_data_dir, file_name=True)
-
-        ## insert it in the dictionary dataset
-        #dataset.update({"support": support_dataset})
-        #dataset.update({"query": query_dataset})
-
-        ## Set up the folder for to store the extracted
-        #support_features_params = f"{self.args.normalisation_couleur}_{self.args.transform_size}_{self.args.patch_size}"
-        #features_folder = "features_" + support_features_params
-        # if self.args.support_hospital != 'kremlin':
-        #features_folder += "__support_" + self.args.support_hospital
 
         ## ''' FEATURE EXTRACTION support'''
         ## Create a dictionary: extracted_features_dic_support = {
@@ -173,33 +149,28 @@ class Evaluator:
             save_directory=self.args.features_dir,
             save_filename=self.args.query_split_file + '.plk'
         )
-
-        ### The same for the query set
-        ### concat_label = tensor([5*Q]) (every label is 5, UNKNOWN class)
-        ### concat_patchs is a list of strings representing the patch names of the query set ('36_I_x_0_y_0')
-
-        
-        first_patch_size = False
+  
         all_features_support = extracted_features_dic_support["concat_features"]
         all_labels_support = extracted_features_dic_support["concat_labels"].long()
-        all_slices_support = extracted_features_dic_support["concat_slices"]
-        all_patchs_support = extracted_features_dic_support["concat_patchs"]
-
-        all_features_query = extracted_features_dic_query["concat_features"]
-        all_labels_query = extracted_features_dic_query["concat_labels"].long()
-        all_slices_query = extracted_features_dic_query["concat_slices"]
-        all_patchs_query = extracted_features_dic_query["concat_patchs"]
 
 
+        # Create the windows for the query set
+        if self.args.sampling == "sliding_window":
+            self.args.n_query = (self.args.window_size) ** 2
 
-        ## set the path for the S matrix
-        support_features_params = f"{self.args.normalisation_couleur}_{self.args.transform_size}"
+            if self.args.overlapping:
+                        save_path = self.args.querysets_dir + self.args.query_split_file + '_overlapping' + '.plk'
+            else:
+                save_path = self.args.querysets_dir + self.args.query_split_file + '.plk'
 
-        # Start the evaluation
-        nb_passages_pour_moyenner = 1
-
-        if (self.args.sampling == "sliding_window") and self.args.prediction:
-            nb_passages_pour_moyenner = 1
+            compo_querysets = extract_query_sets_full_slide_prediction(
+                patch_list=extracted_features_dic_query['concat_patchs'],
+                window_size=self.args.window_size,
+                save_path=save_path,
+                overlapping=self.args.overlapping
+            )
+                    
+            n_iter = len(compo_querysets["query_sets"])
 
         #if self.args.evaluation:
             # name_file = f'results/test/{self.args.dataset}/{self.args.arch}/{self.args.name_method}.txt'
@@ -250,16 +221,6 @@ class Evaluator:
             #         + "\n"
             #     )
 
-        len_query_vs_accuracy = []
-
-        all_metrics = [
-            "accuracy",
-            "f1_weighted",
-            "balanced_acc",
-            "f1_micro",
-            "f1_macro",
-        ]
-
         if self.args.method != "paddle":
             self.args.alphas = [0]
             self.args.gamma = 1.0
@@ -268,53 +229,20 @@ class Evaluator:
         for alpha in self.args.alphas:
             self.args.alpha = alpha
             results = []
-            all_metrics_list = {m: [] for m in all_metrics}
-
+        
             ## if we want to do the experiment for many values of shots
             for shot in self.args.shots:
                 nb_tasks_real = 0
                 predictions_par_patch = {}
-                number_classes_by_query_set = []
                 results_task = []
                 global_truth = []
-
-                ## Used to store:
-                ## - the prediction of the single patches (may happen same patch in different sliding window)
-                ## - the predicted patches
-                ## in order to reconstruct the predictions using majority voting for each patch
                 global_prediction = []
                 global_confidence = []
                 global_patch_order = []
 
-
-                ## if the sampling is sliding window
-                ## create the query sets using the sliding window technique, each one is window_size**2
-                ## save or load them in quey_sets_patchsize_{self.args.patch_size}_windowsize_{self.args.window_size}_{self.args.trainset_name}/query/queryset.plk
-                ## compo_querysets is a dictionary: {
-                ## 'min_x': int, 'max_x': int, 'min_y': int, 'max_y': int,
-                ## 'query_sets': [['36_I_x_16_y_14', ... x25?][]...] list of querysets, each queryset is a list of patch names}
-                if self.args.sampling == "sliding_window":
-                    # calculer les fenetres glissantes et voir combien il y en a
-                    self.args.n_query = (self.args.window_size) ** 2
-                    if self.args.overlapping:
-                        save_path = self.args.querysets_dir + self.args.query_split_file + '_overlapping' + '.plk'
-                    else:
-                        save_path = self.args.querysets_dir + self.args.query_split_file + '.plk'
-
-                    compo_querysets = extract_query_sets_full_slide_prediction(
-                        patch_list=extracted_features_dic_query['concat_patchs'],
-                        window_size=self.args.window_size,
-                        save_path=save_path,
-                        overlapping=self.args.overlapping
-                    )
-                    
-                    n_iter = len(compo_querysets["query_sets"])
-
                 # create the support set
-                    x_support, y_support = generate_support_set(extracted_features_dic_support, shot)
+                x_support, y_support = generate_support_set(extracted_features_dic_support, shot)
                 
-
-
                 ## save or load from quey_sets_patchsize_{self.args.patch_size}_squares_{self.args.trainset_name}/query/queryset.plk
                 ## reconstruct the squares as query set for the task
                 ## compo_querysets is a list of list of patch names
@@ -339,110 +267,18 @@ class Evaluator:
                 # else:
                 #     n_iter = int(self.args.number_tasks / self.args.batch_size)
                 
-                
-                
                 print("Inference started")
 
-                ## Create the sliding windows with the data and do the predictions for each of them
-                for i in tqdm(range(n_iter * nb_passages_pour_moyenner)):
-                    ##  Create a Categories sampler for each query set
-                    ##  When calling create_list_index()...
-                    ##  The sampler will map the elements of the query set and support set to the indices of the extracted features
-                    ##  From '[36_I_x_16_y_14, ...]' to [0, 1, ...] (the indices of the extracted features but in random order)
-                    ##  CategoriesSampler will have:
-                    ##  index_query = [0, 4, 2, 5, 3, 14, 10, 7, 8, 9...]
-                    ##  index_support = [[0, 4, 2, 5, 3...], [14, 10...], [7...]...]    list of index for each class
-                    ##  list_classes = [0, 1, 2, 3, 4]    list of classes
-                    # sampler = CategoriesSampler(
-                    #     self.args.batch_size,
-                    #     self.args.n_ways,
-                    #     shot,
-                    #     self.args.n_query,
-                    #     self.args.sampling,
-                    # )
-                    # if self.args.sampling == "sliding_window":
-                    #     sampler.create_list_index(
-                    #         all_labels_support,
-                    #         all_labels_query,
-                    #         all_slices_query,
-                    #         all_patchs_query=all_patchs_query,
-                    #         patchs_this_query=compo_querysets["query_sets"][
-                    #             i % n_iter
-                    #         ],
-                    #     )
-
-                    # elif self.args.sampling == "squares":
-                    #     sampler.create_list_index(
-                    #         all_labels_support,
-                    #         all_labels_query,
-                    #         all_slices_query,
-                    #         all_patchs_query=all_patchs_query,
-                    #         patchs_this_query=compo_querysets[i % n_iter],
-                    #     )
-                    #     # sampler.create_list_index(all_labels_support, all_labels_query, all_slices_query,
-                    #     #                              all_patchs_query=all_patchs_query, patchs_this_query=compo_querysets[random.randint(0,nb_steps)])
-                    # elif self.args.number_tasks == "max":
-                    #     sampler.create_list_index(
-                    #         all_labels_support,
-                    #         all_labels_query,
-                    #         all_slices_query,
-                    #         slice_to_take=i % n_iter,
-                    #     )
-                    # else:
-                    #     sampler.create_list_index(
-                    #         all_labels_support, all_labels_query, all_slices_query
-                    #     )
-
-                    # ## Create a sampler for the support set and the query set
-                    # ## SamplerSupport has index_support and list_classes
-                    # ## SamplerQuery has index_query
-                    # sampler_support = SamplerSupport(
-                    #     sampler, slices_support=all_slices_support
-                    # )  # ,True,all_slices_support)
-                    # sampler_query = SamplerQuery(sampler)
-
-                    # patients_list = sampler_support.list_patients
-                    # test_loader_query = []
-                    # ordre_patchs_dans_query = []
-
-                    # ## for each batchid (1 in general case):
-                    # ## the __iter__ or SamplerSupport will return a tensor of self.arg.n_shot indexes of each class (by batches time)
-                    # ## the __iter__ or SamplerQuery will return a tensor of queryset indexes (by batches time)
-                    # ## create the tensor of extracted features corresponding to the indexes for both query and support set
-                    # ## test_loader_query:
-                    # ## [( tensor([Window_size, #features]), tensor([Window_size]) )...*batches]: tuples ([features], [labels]) for each batch
-                    # ## if using sliding window, ordre_patchs_dans_query: [[36_I_x_1_y3, ...]] will be a list patch names to track the order
-                    # ## test_loader_support:
-                    # ## [( tensor([Window_size, #features]), tensor([Window_size]) )...*batches]: tuples ([features], [labels]) for each batch
-                    # for indices in sampler_query:
-                    #     test_loader_query.append(
-                    #         (all_features_query[indices, :], all_labels_query[indices])
-                    #     )
-                    #     if self.args.sampling == "sliding_window":
-                    #         ordre_patchs_dans_query.append(
-                    #             [all_patchs_query[int(x)] for x in indices]
-                    #         )
-                    # test_loader_support = []
-                    # for indices in sampler_support:
-                    #     test_loader_support.append(
-                    #         (
-                    #             all_features_support[indices, :],
-                    #             all_labels_support[indices],
-                    #         )
-                    #     )
-
-
+                ## do hte inference with each query set (window)
+                for i in tqdm(range(n_iter)):
                     query_set_files = compo_querysets["query_sets"][i % n_iter]
-                    
+                    x_query, y_query = generate_query_set(extracted_features_dic_query, query_set_files)
+
                     # Generate tasks
-                    ## by running generate_tasks() we will get a dictionary of the form:{
                     ## 'x_s': tensor([batch, #samples=shots*way, #features])
                     ## 'y_s': tensor([batch, #samples=shots*way, 1])
                     ## 'x_q': tensor([batch, #samples=windows_size, #features])
                     ## 'y_q': tensor([batch, #samples=windows_size, 1])}
-                    
-                    x_query, y_query = generate_query_set(extracted_features_dic_query, query_set_files)
-
                     tasks = {
                         "x_s": x_support,
                         "y_s": y_support,
@@ -450,8 +286,6 @@ class Evaluator:
                         "y_q": y_query,
                     }
 
-                
-                    
                     # Get the method
                     ## Get the model (PADDLE) in general
                     method = self.get_method_builder(model=model)
@@ -465,10 +299,9 @@ class Evaluator:
                     if self.args.method == "paddle":
                         logs, truth, pred, conf = method.run_task(
                             task_dic=tasks,
-                            all_features_trainset=all_features_support,
-                            all_labels_trainset=all_labels_support,
+                            all_features_support=all_features_support,
+                            all_labels_support=all_labels_support,
                             gamma=self.args.gamma,
-                            support_features_params=support_features_params,
                         )
                     else:
                         logs, truth, pred, conf = method.run_task(
@@ -476,33 +309,34 @@ class Evaluator:
                         )
 
                     ## Task completed for the sliding window
-                    if logs != "Pas assez de query examples disponibles":
-                        nb_tasks_real += 1
+                    nb_tasks_real += 1
 
-                        ## Save the predictions and confidences of each single patch and in order to reconstruct the predictions
-                        global_prediction += pred
-                        global_confidence += conf
-                        global_patch_order += query_set_files
+                    ## Save the predictions and confidences of each single patch and in order to reconstruct the predictions
+                    global_prediction += pred
+                    global_confidence += conf
+                    global_patch_order += query_set_files
+                    global_truth += truth
 
-                        ## keep track of how many classes are inside a sliding window
-                        number_classes_by_query_set.append(len(set(pred)))
+                    ## keep track of how many classes are inside a sliding window
+                    #number_classes_by_query_set.append(len(set(pred)))
 
-                        if self.args.evaluation:
-                            acc_mean, acc_conf = compute_confidence_interval(
-                                logs["acc"][:, -1]
-                            )
-                            results_task.append(acc_mean)
-                            global_truth += truth
-                            if (alpha == "adaptatif_100%") and (shot >= 30):
-                                len_query_vs_accuracy.append(
-                                    (tasks["y_q"].shape[1], acc_mean)
-                                )
+                    # if self.args.evaluation:
+                    #     acc_mean, acc_conf = compute_confidence_interval(
+                    #         logs["acc"][:, -1]
+                    #     )
+                    #     results_task.append(acc_mean)
+                    #     global_truth += truth
+                    #     if (alpha == "adaptatif_100%") and (shot >= 30):
+                    #         len_query_vs_accuracy.append(
+                    #             (tasks["y_q"].shape[1], acc_mean)
+                    #         )
 
-                        if (self.args.number_tasks != "max") and (
-                            nb_tasks_real
-                            == nb_passages_pour_moyenner * self.args.number_tasks
-                        ):
-                            break
+                    # if (self.args.number_tasks != "max") and (
+                    #     nb_tasks_real
+                    #     == nb_passages_pour_moyenner * self.args.number_tasks
+                    # ):
+                    #     break
+                    
                     del method
                     del tasks
                 results.append(results_task)
@@ -533,10 +367,12 @@ class Evaluator:
                         random_number,
                     )
 
+
+                # create the confusion matrix and the classification report
                 if self.args.evaluation:
-                    print(set(global_truth), set(global_prediction))
-                    create_confusion_matrix(global_truth, global_prediction, self.args.confusion_matrix_dir)
-                    with open(self.args.confusion_matrix_dir + "classification_report.txt", "w") as f:
+                    save_dir = self.args.confusion_matrix_dir + self.args.prefix + '/' + shot + '_shots/'
+                    create_confusion_matrix(global_truth, global_prediction, save_dir)
+                    with open(save_dir + "classification_report.txt", "w") as f:
                         f.write(classification_report(y_true=global_truth, y_pred=global_prediction, target_names=['P', 'H', 'Né', 'TL', 'Fi', 'T']))
                     
                     # # on calcule les métriques

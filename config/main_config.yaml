@@ -37,6 +37,8 @@ DATA:
     jitter: False
     split_dir: 'data/splits/'
 
+    n_classes: 6
+    prefix: '6C'
     support_split_file: '6C_support_augmented'  # .csv
     query_split_file: '6C_query'                # .csv
 

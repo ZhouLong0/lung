@@ -153,14 +153,7 @@ class KM(object):
             "acc": self.test_acc,
         }
 
-    def run_task(
-        self,
-        task_dic,
-        all_features_trainset,
-        all_labels_trainset,
-        support_features_params,
-        gamma=1.0,
-    ):
+    def run_task(self, task_dic, all_features_support, all_labels_support, gamma=1.0,):
         """
         inputs:
             task_dic : dictionnary with n_tasks few-shot tasks
@@ -203,10 +196,9 @@ class KM(object):
                 query,
                 y_s,
                 y_q,
-                all_features_trainset,
-                all_labels_trainset,
+                all_features_support,
+                all_labels_support,
                 gamma,
-                support_features_params,
             )
             logs = {"acc": torch.cat(self.test_acc, dim=1).cpu().numpy()}
         else:
@@ -215,10 +207,9 @@ class KM(object):
                 query,
                 y_s,
                 y_q,
-                all_features_trainset,
-                all_labels_trainset,
+                all_features_support,
+                all_labels_support,
                 gamma,
-                support_features_params,
             )
             # Extract adaptation logs
             logs = self.get_logs()
@@ -331,7 +322,6 @@ class PADDLE(KM):
         y_s,
         all_features_trainset,
         all_labels_trainset,
-        support_features_params,
     ):
         self.s_is_diag = True
         n_task, n_examples, n_ways = y_s_one_hot.size()
@@ -685,7 +675,6 @@ class PADDLE(KM):
             y_s,
             all_features_trainset,
             all_labels_trainset,
-            support_features_params,
         )
 
         # y_new = y_s[y_s == 0][:10]
