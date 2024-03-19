@@ -9,14 +9,30 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 def training(model, train_loader, criterion, optimizer, device):
+    '''
+    Train the model for one epoch 
+
+    Args:
+        model: model to be trained
+        train_loader: DataLoader with the training data
+        criterion: loss function
+        optimizer: optimizer
+        device: device where the model is allocated
+
+    Returns:
+        (float) epoch_train_loss: average loss of the epoch
+        (float) epoch_train_accuracy: accuracy of the epoch        
+    '''
     current_loss = 0.0
     current_corrects = 0
     train_total = 0
     model.train()
     for batch_idx, (data, targets) in enumerate(tqdm(train_loader)):  
         optimizer.zero_grad() 
-        data = data.cuda()
-        targets = targets.cuda()
+
+        data = data.to(device)
+        targets = targets.to(device)
+
         outputs = model(data)
         loss = criterion(outputs, targets)
         preds = torch.softmax(outputs, dim=1).argmax(dim=1)
@@ -31,14 +47,28 @@ def training(model, train_loader, criterion, optimizer, device):
     return epoch_train_loss, epoch_train_accuracy
     
 def testing(model, test_loader, criterion, device):
+    '''
+    Test the model on the test data
+
+    Args:
+        model: model to be tested
+        test_loader: DataLoader with the test data
+        criterion: loss function
+        device: device where the model is allocated
+
+    Returns:
+        (float) epoch_test_loss: average loss on the training data
+        (float) epoch_test_accuracy: accuracy on the training data
+    '''
     model.eval()
     current_losses = 0
     correct = 0
     test_total = 0
     with torch.no_grad():
         for data, target in test_loader:
-            data = data.cuda()
-            target = target.cuda()
+            data = data.to(device)
+            target = target.to(device)
+            
             outputs = model(data)
             losses = criterion(outputs, target)   
             predictions = torch.softmax(outputs, dim=1).argmax(dim=1)

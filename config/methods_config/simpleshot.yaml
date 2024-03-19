@@ -1,0 +1,5 @@
+METHOD:
+  name_method: 'SIMPLE_SHOT'
+  num_NN: 1
+  norm_type: 'L2N' # ('CL2N', 'L2N', 'UN')
+  iter: 1

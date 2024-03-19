@@ -172,6 +172,9 @@ pyrightconfig.json
 
 data/
 evaluation/
+model_checkpoints/
+checkpoints/
+
 *.jpg
 *.pth
 *.pt

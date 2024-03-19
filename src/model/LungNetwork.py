@@ -19,9 +19,10 @@ class LungNet(Module):
 
         Args:
             model_path: path to the pretrained baseline model
-            num_classes: number of classes
+            num_classes: number of classes to be classified
 
-        self.model: new tranfered model using pretrained model
+        Attributes:
+            model: new transfered model using pretrained model
         '''
         super(LungNet, self).__init__()
         self.model_path = model_path

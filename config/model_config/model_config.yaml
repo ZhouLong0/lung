@@ -1,0 +1,8 @@
+MODEL:
+    arch: 'resnet18' # ('resnet18', 'wideres')
+    
+DISTRIBUTED:
+    cuda: True
+    seed: 2020
+    ckpt_path: 'checkpoints/liver/resnet18' # path model checkpoint
+    log_path: 'logs' # path to where log files will be saved 
