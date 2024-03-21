@@ -56,8 +56,8 @@ def main():
     logger.info('Number of model parameters: {}'.format(sum([p.data.nelement() for p in model.parameters()])))
     
     evaluator = Evaluator(device=device, args=args, log_file=log_file)
-    results = evaluator.run_full_evaluation(model=model)
-    return results
+    evaluator.run_full_evaluation(model=model)
+    #return results
 
 if __name__ == "__main__":
     main()

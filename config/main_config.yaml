@@ -2,15 +2,16 @@ EVAL:
     dataset: 'liver' #"liver"             # ('liver') normalement c'est le dossier du dataset 
     arch: 'resnet18'                # ('resnet18')
     method: "paddle" #'simpleshot'                # ('paddle', 'baseline', 'soft_km')
-    n_ways: 5                       # number of different classes represented in the query
-    n_query: 25                     # total number of images in query
-    shots: [1000]                     # number of shots for which evaluation is performed
+    n_ways: 6                       # number of different classes represented in the query
+    #n_query: 25                     # total number of images in query
+    shots: [3]                     # number of shots for which evaluation is performed
     sampling:  'sliding_window' #'squares' #'squares'             # ('same_slice' |  | 'squares') sampling of the query
-    overlapping: False            
+    overlapping: True      
+
     number_tasks: "max" #10           # number of tasks to evaluate
     batch_size: 1                   # number of tasks per batch    # laisser à 1, c'est probablement cassé
     normalisation_couleur: 'no'   # ('no', 'grayscale', 'basic', 'reinhard')  
-    transform_size: 512             # downsampling size we use before extracting features
+    #transform_size: 512             # downsampling size we use before extracting features
     #patch_sizes: [3]                # size of the patchs we extract, 0 1 2 3 means 512px, 768px, 1152px, 1728px
     same_query_size: False          # boolean, if true all query sets have to have exactly n_query examples, if false it can be smaller
     covariance_used: "GLASSO"       # which covariance matrix to use ("sans_S", "S_sans_update", "S_updated", "S_full") 
@@ -24,7 +25,7 @@ EVAL:
     prediction: False
     evaluation: True
 
-    confusion_matrix_dir: 'evaluation/fewshots/'
+    evaluation_dir: 'evaluation/fewshots/'
 
 DATA:
     dataset: 'liver'
@@ -35,6 +36,8 @@ DATA:
     num_workers: 0
     disable_random_resize: False
     jitter: False
+
+
     split_dir: 'data/splits/'
 
     n_classes: 6

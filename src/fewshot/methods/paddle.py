@@ -129,14 +129,14 @@ class KM(object):
             groundtruth += list(y_q[i].cpu().numpy())
             confidences += list(conf[i].cpu().numpy())
         cf_matrix = cf_matrix / len(preds_q)
-        try:
-            cf_matrix_old = np.load("confusion_matrix/average_confusion_matrix.npy")
-            np.save(
-                "confusion_matrix/average_confusion_matrix.npy",
-                np.concatenate((cf_matrix_old, cf_matrix), axis=0),
-            )
-        except:
-            np.save("confusion_matrix/average_confusion_matrix.npy", cf_matrix)
+        # try:
+        #     cf_matrix_old = np.load("confusion_matrix/average_confusion_matrix.npy")
+        #     np.save(
+        #         "confusion_matrix/average_confusion_matrix.npy",
+        #         np.concatenate((cf_matrix_old, cf_matrix), axis=0),
+        #     )
+        # except:
+        #     np.save("confusion_matrix/average_confusion_matrix.npy", cf_matrix)
 
         accuracy = (preds_q == y_q).float().mean(1, keepdim=True)
         self.test_acc.append(accuracy)
@@ -153,7 +153,7 @@ class KM(object):
             "acc": self.test_acc,
         }
 
-    def run_task(self, task_dic, all_features_support, all_labels_support, gamma=1.0,):
+    def run_task(self, task_dic, all_features_support, all_labels_support, shot, gamma=1.0, ):
         """
         inputs:
             task_dic : dictionnary with n_tasks few-shot tasks
@@ -210,6 +210,7 @@ class KM(object):
                 all_features_support,
                 all_labels_support,
                 gamma,
+                shot,
             )
             # Extract adaptation logs
             logs = self.get_logs()
@@ -322,6 +323,7 @@ class PADDLE(KM):
         y_s,
         all_features_trainset,
         all_labels_trainset,
+        shot,
     ):
         self.s_is_diag = True
         n_task, n_examples, n_ways = y_s_one_hot.size()
@@ -342,7 +344,7 @@ class PADDLE(KM):
             if self.s_use_all_train_set:
                 self.s_init_GLASSO_use_all_train_set(all_features_trainset, all_labels_trainset, self.args.cov_matrix_path + self.args.support_split_file + '/')
             else:
-                self.s_init_GLASSO(support, y_s_one_hot, y_s, self.args.cov_matrix_path + self.args.support_split_file + '/')
+                self.s_init_GLASSO(support, y_s_one_hot, y_s, self.args.cov_matrix_path + self.args.support_split_file + f'/{str(shot)}_shots/')
 
     def s_init_diag(self, support, y_s_one_hot):
         den = (
@@ -498,9 +500,9 @@ class PADDLE(KM):
                         # S = (S_new * (S != 0.0))
                         # self.s[a,k] = S.to(self.device)
                         plt.figure(figsize=(10, 10))
-                        plt.imshow(abs(S), cmap="nipy_spectral")
+                        #plt.imshow(abs(S), cmap="nipy_spectral")
                         #plt.title(f"abs(S_{k})  [classe {list_classes[k]}]")
-                        plt.colorbar()
+                        #plt.colorbar()
                         plt.savefig(
                             save_dir + f"S_{k}_lambd_{lambd_GLASSO}_support.png"
                         )
@@ -635,7 +637,7 @@ class PADDLE(KM):
         all_features_trainset,
         all_labels_trainset,
         gamma,
-        support_features_params,
+        shot
     ):
         """
         Corresponds to the PADDLE inference
@@ -675,6 +677,7 @@ class PADDLE(KM):
             y_s,
             all_features_trainset,
             all_labels_trainset,
+            shot
         )
 
         # y_new = y_s[y_s == 0][:10]

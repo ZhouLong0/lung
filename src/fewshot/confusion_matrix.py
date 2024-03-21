@@ -15,14 +15,14 @@ def create_confusion_matrix(y_true_test, y_preds_test, save_dir):
     sns.heatmap(conf_mat_test, annot=True, fmt='0.3f',xticklabels=labels,yticklabels=labels, cmap='BuPu') 
     plt.xlabel('Predicted labels')
     plt.ylabel('True labels')
-    plt.title('Confusion matrix - Test')
+    plt.title('Confusion matrix normalized - Query')
 
     conf_mat_test = confusion_matrix(np.array(y_true_test) ,np.array(y_preds_test)) 
     plt.subplot(122)   #Test
     sns.heatmap(conf_mat_test, annot=True, fmt='0.3f',xticklabels=labels,yticklabels=labels, cmap='BuPu') 
     plt.xlabel('Predicted labels')
     plt.ylabel('True labels')
-    plt.title('Confusion matrix - Test')
+    plt.title('Confusion matrix - Query')
     plt.tight_layout()
     plt.savefig(save_dir + f'confusion_matrix.jpeg')
-    plt.show()
+    #plt.show()

@@ -20,7 +20,6 @@ import torch
 import os
 import matplotlib.pyplot as plt
 from src.fewshot.normalize import norm_reinhard
-from confusion_matrix.create_confusion_matrix import create_confusion_matrix
 from sklearn.metrics import (
     confusion_matrix,
     accuracy_score,
@@ -87,25 +86,25 @@ class Evaluator:
         # Load the model used as feature extractor
         load_checkpoint(model=model, model_path=self.args.features_extractor_path)
 
-        # normalize
-        basic_normalisation = False
-        grayscale = False
-        if self.args.normalisation_couleur == "reinhard":
-            ## Create and insert new reinard normalised images in the dataset (just change arg.data_path if already done)
-            ## new normalized imagaes in the folder */data/liver_normalized_reinhard
-            ## also change the arg.data_path to the new normalized one
-            norm_reinhard(args=self.args)
+        # # normalize
+        # basic_normalisation = False
+        # grayscale = False
+        # if self.args.normalisation_couleur == "reinhard":
+        #     ## Create and insert new reinard normalised images in the dataset (just change arg.data_path if already done)
+        #     ## new normalized imagaes in the folder */data/liver_normalized_reinhard
+        #     ## also change the arg.data_path to the new normalized one
+        #     norm_reinhard(args=self.args)
 
-        ## for other normalisation methods just do it during the feature extraction
-        elif self.args.normalisation_couleur == "basic":
-            basic_normalisation = True
-        elif self.args.normalisation_couleur == "grayscale":
-            grayscale = True
-        elif self.args.normalisation_couleur == "no":
-            pass
-        else:
-            print("Unknown color normalisation:", self.args.normalisation_couleur)
-            raise Exception("Unknown color normalisation")
+        # ## for other normalisation methods just do it during the feature extraction
+        # elif self.args.normalisation_couleur == "basic":
+        #     basic_normalisation = True
+        # elif self.args.normalisation_couleur == "grayscale":
+        #     grayscale = True
+        # elif self.args.normalisation_couleur == "no":
+        #     pass
+        # else:
+        #     print("Unknown color normalisation:", self.args.normalisation_couleur)
+        #     raise Exception("Unknown color normalisation")
 
         ## we want to create sliding_windows in the entire query image for the prediction
         # if self.args.sampling == "sliding_window":  # predict on WSI
@@ -153,13 +152,12 @@ class Evaluator:
         all_features_support = extracted_features_dic_support["concat_features"]
         all_labels_support = extracted_features_dic_support["concat_labels"].long()
 
-
         # Create the windows for the query set
         if self.args.sampling == "sliding_window":
             self.args.n_query = (self.args.window_size) ** 2
 
             if self.args.overlapping:
-                        save_path = self.args.querysets_dir + self.args.query_split_file + '_overlapping' + '.plk'
+                save_path = self.args.querysets_dir + self.args.query_split_file + '_overlapping' + '.plk'
             else:
                 save_path = self.args.querysets_dir + self.args.query_split_file + '.plk'
 
@@ -228,20 +226,20 @@ class Evaluator:
         ## If we want to experiment for many values of alpha
         for alpha in self.args.alphas:
             self.args.alpha = alpha
-            results = []
+            accuracies = {}
         
             ## if we want to do the experiment for many values of shots
-            for shot in self.args.shots:
+            for n_shot in self.args.shots:
                 nb_tasks_real = 0
                 predictions_par_patch = {}
-                results_task = []
+        
                 global_truth = []
                 global_prediction = []
                 global_confidence = []
                 global_patch_order = []
 
-                # create the support set
-                x_support, y_support = generate_support_set(extracted_features_dic_support, shot)
+                # create the support set once for each task
+                x_support, y_support = generate_support_set(extracted_features_dic_support, n_shot)
                 
                 ## save or load from quey_sets_patchsize_{self.args.patch_size}_squares_{self.args.trainset_name}/query/queryset.plk
                 ## reconstruct the squares as query set for the task
@@ -267,11 +265,11 @@ class Evaluator:
                 # else:
                 #     n_iter = int(self.args.number_tasks / self.args.batch_size)
                 
-                print("Inference started")
+                print("Inference started for n_shot: ", n_shot, " and alpha: ", alpha)
 
-                ## do hte inference with each query set (window)
+                ## do the inference with each query set (window)
                 for i in tqdm(range(n_iter)):
-                    query_set_files = compo_querysets["query_sets"][i % n_iter]
+                    query_set_files = compo_querysets["query_sets"][i]
                     x_query, y_query = generate_query_set(extracted_features_dic_query, query_set_files)
 
                     # Generate tasks
@@ -302,10 +300,12 @@ class Evaluator:
                             all_features_support=all_features_support,
                             all_labels_support=all_labels_support,
                             gamma=self.args.gamma,
+                            shot=n_shot,
                         )
+                        print(logs)
                     else:
                         logs, truth, pred, conf = method.run_task(
-                            task_dic=tasks, shot=shot
+                            task_dic=tasks, shot=n_shot
                         )
 
                     ## Task completed for the sliding window
@@ -339,7 +339,6 @@ class Evaluator:
                     
                     del method
                     del tasks
-                results.append(results_task)
 
                 ## Reconstruction of the predictions using majority vote
                 ## construct each patch which prediction has been made, how many times
@@ -363,18 +362,63 @@ class Evaluator:
                         predictions_par_patch,
                         self.args,
                         alpha,
-                        shot,
+                        n_shot,
                         random_number,
                     )
 
 
                 # create the confusion matrix and the classification report
-                if self.args.evaluation:
-                    save_dir = self.args.confusion_matrix_dir + self.args.prefix + '/' + shot + '_shots/'
+                if self.args.evaluation and (not self.args.overlapping):
+                    S_all = '' if not self.args.s_use_all_train_set else '_S_all'
+                    save_dir = self.args.evaluation_dir + f'/{self.args.prefix}_{self.args.method}_{str(n_shot)}_shots{S_all}/'
+
+                    if not os.path.exists(save_dir):
+                        os.makedirs(save_dir, exist_ok=True)
+
                     create_confusion_matrix(global_truth, global_prediction, save_dir)
                     with open(save_dir + "classification_report.txt", "w") as f:
                         f.write(classification_report(y_true=global_truth, y_pred=global_prediction, target_names=['P', 'H', 'Né', 'TL', 'Fi', 'T']))
+
+                    accuracy = accuracy_score(global_truth, global_prediction)
+                    accuracies[n_shot] = accuracy
+
+                    print(f"Accuracy for {n_shot}-shot: {accuracy}")
+
+
+                elif self.args.evaluation and self.args.overlapping:
+                    S_all = '' if not self.args.s_use_all_train_set else '_S_all'
+                    save_dir = self.args.evaluation_dir + f'/{self.args.prefix}_{self.args.method}_{str(n_shot)}_shots{S_all}_woverlapping/'
                     
+                    if not os.path.exists(save_dir):
+                        os.makedirs(save_dir, exist_ok=True)
+
+                    predictions = {}
+                    truth = {}
+
+                    for i, patch in enumerate(global_patch_order):
+                        if patch not in predictions:
+                            predictions[patch] = []
+                            truth[patch] = global_truth[i]
+                        predictions[patch].append(global_prediction[i])
+
+                    for patch in predictions:
+                        predictions[patch] = max(set(predictions[patch]), key=predictions[patch].count)
+
+                    predictions = list(predictions.values())
+                    truth = list(truth.values())
+
+                    create_confusion_matrix(truth, predictions, save_dir)
+                    with open(save_dir + "classification_report.txt", "w") as f:
+                        f.write(classification_report(y_true=truth, y_pred=predictions, target_names=['P', 'H', 'Né', 'TL', 'Fi', 'T']))
+
+                    accuracy = accuracy_score(truth, predictions)
+                    accuracies[n_shot] = accuracy
+
+                    print(f"Accuracy for {n_shot}-shot with overlapping: {accuracy}")
+
+                else:
+                    raise ValueError("To be implemented")
+
                     # # on calcule les métriques
                     # all_metrics_list["accuracy"].append(
                     #     accuracy_score(global_truth, global_prediction)
@@ -464,10 +508,12 @@ class Evaluator:
                     #         plt.savefig(f"histograms/hist_nshots_{shot}.png")
                     #         plt.close()
 
-            if self.args.evaluation:
-                mean_accuracies = np.asarray(results).mean(1)
-            else:
-                mean_accuracies = "No accuracy here, this is a prediction"
+            # if self.args.evaluation:
+            #     print(accuracies)
+            #     #mean_accuracies = np.asarray(accuracies.values).mean()
+            #     #print(mean_accuracies)
+            # else:
+            #     mean_accuracies = "No accuracy here, this is a prediction"
 
             if self.args.name_method == "PADDLE":
                 param = self.args.alpha
@@ -482,7 +528,13 @@ class Evaluator:
             elif self.args.name_method == "Baseline":
                 param = self.args.iter
 
-            logging.info("----- Final test results -----")
+            logging.info("----- Test has ended -----")
+
+            # save the accuracies dictionary into a csv file
+            #save_dir = self.args.evaluation_dir
+            #df = pd.DataFrame(list(accuracies.items()), columns=['n_shots', 'accuracy'])
+            #df.to_csv(self.args.evaluation_dir + f'{self.args.prefix}_{self.args.method}_n_shots_analysis{S_all}.csv', index=False)
+
             # if self.args.evaluation:
             #     path = "results/test/{}/{}".format(self.args.dataset, self.args.arch)
             #     # name_file = path + '/{}.txt'.format(self.args.name_method)
@@ -553,7 +605,7 @@ class Evaluator:
         # super_logger.info(
         #     f"This is an informational message:  Test_{random_number} Finished! \n"
         # )
-        return mean_accuracies
+        return None
 
 
 
