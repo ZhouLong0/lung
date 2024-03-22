@@ -1,3 +1,4 @@
+from collections import Counter
 import numpy as np
 from src.fewshot.utils import (
     compute_confidence_interval,
@@ -57,7 +58,7 @@ class Evaluator:
         self.args = args
         self.log_file = log_file
         self.logger = Logger(__name__, self.log_file)
-
+    
         print(self.args)
 
     def run_full_evaluation(self, model):
@@ -117,11 +118,14 @@ class Evaluator:
         #     self.args.evaluation = True
 
         ## load the df
-        df_query = pd.read_csv(self.args.split_dir + self.args.support_split_file + '.csv').sample(frac = 1)
+        df_query = pd.read_csv(self.args.split_dir + self.args.query_split_file + '.csv').sample(frac = 1)
         df_support = pd.read_csv(self.args.split_dir + self.args.support_split_file + '.csv').sample(frac = 1)
+        df_support_only_augmented = pd.read_csv(self.args.split_dir + self.args.support_split_file_only_augmented + '.csv').sample(frac = 1)
 
-        support_dataset = LungSet(df_support, self.args.support_data_dir, file_name=True)
-        query_dataset = LungSet(df_query, self.args.query_data_dir, file_name=True)
+
+        query_dataset = LungSet(df_query, self.args.data_dir, file_name=True)
+        support_dataset = LungSet(df_support, self.args.data_dir, file_name=True)
+        support_dataset_only_augmented = LungSet(df_support_only_augmented, self.args.data_dir_augmented, file_name=True)
 
         ## ''' FEATURE EXTRACTION support'''
         ## Create a dictionary: extracted_features_dic_support = {
@@ -134,6 +138,13 @@ class Evaluator:
             dataset=support_dataset,
             save_directory=self.args.features_dir,
             save_filename=self.args.support_split_file + '.plk'
+        )
+
+        extract_features_dic_support_only_augmented = extract_features(
+            model=model,
+            dataset=support_dataset_only_augmented,
+            save_directory=self.args.features_dir,
+            save_filename=self.args.support_split_file_only_augmented + '.plk'
         )
 
         ## ''' FEATURE EXTRACTION query'''
@@ -238,8 +249,14 @@ class Evaluator:
                 global_confidence = []
                 global_patch_order = []
 
+                # find lowest occurency
+                #counter = Counter(extracted_features_dic_support["concat_labels"].tolist())
+                #max_shots_not_augmented = min(counter.values())
+
+
                 # create the support set once for each task
-                x_support, y_support = generate_support_set(extracted_features_dic_support, n_shot)
+                x_support, y_support = generate_support_set(extracted_features_dic_support, extract_features_dic_support_only_augmented, n_shot)
+    
                 
                 ## save or load from quey_sets_patchsize_{self.args.patch_size}_squares_{self.args.trainset_name}/query/queryset.plk
                 ## reconstruct the squares as query set for the task
@@ -302,7 +319,7 @@ class Evaluator:
                             gamma=self.args.gamma,
                             shot=n_shot,
                         )
-                        print(logs)
+                
                     else:
                         logs, truth, pred, conf = method.run_task(
                             task_dic=tasks, shot=n_shot
@@ -370,7 +387,7 @@ class Evaluator:
                 # create the confusion matrix and the classification report
                 if self.args.evaluation and (not self.args.overlapping):
                     S_all = '' if not self.args.s_use_all_train_set else '_S_all'
-                    save_dir = self.args.evaluation_dir + f'/{self.args.prefix}_{self.args.method}_{str(n_shot)}_shots{S_all}/'
+                    save_dir = self.args.evaluation_dir + f'/{self.args.prefix}_{self.args.method}_{alpha}_{str(n_shot)}_shots{S_all}/'
 
                     if not os.path.exists(save_dir):
                         os.makedirs(save_dir, exist_ok=True)
@@ -387,7 +404,7 @@ class Evaluator:
 
                 elif self.args.evaluation and self.args.overlapping:
                     S_all = '' if not self.args.s_use_all_train_set else '_S_all'
-                    save_dir = self.args.evaluation_dir + f'/{self.args.prefix}_{self.args.method}_{str(n_shot)}_shots{S_all}_woverlapping/'
+                    save_dir = self.args.evaluation_dir + f'/{self.args.prefix}_{self.args.method}_{alpha}_{str(n_shot)}_shots{S_all}_woverlapping/'
                     
                     if not os.path.exists(save_dir):
                         os.makedirs(save_dir, exist_ok=True)
@@ -515,26 +532,16 @@ class Evaluator:
             # else:
             #     mean_accuracies = "No accuracy here, this is a prediction"
 
-            if self.args.name_method == "PADDLE":
-                param = self.args.alpha
-            elif self.args.name_method == "SOFT-KM":
-                param = self.args.alpha
-            elif self.args.name_method == "TIM":
-                param = self.args.alpha
-            elif self.args.name_method == "ALPHA_TIM":
-                param = self.args.alpha_value
-            elif self.args.name_method == "SIMPLE_SHOT":
-                param = self.args.num_NN
-            elif self.args.name_method == "Baseline":
-                param = self.args.iter
+            
+            #save the accuracies dictionary into a csv file
+            save_dir = self.args.evaluation_dir
+            df = pd.DataFrame(list(accuracies.items()), columns=['n_shots', 'accuracy'])
+            df.to_csv(self.args.evaluation_dir + f'{self.args.prefix}_{self.args.method}_{n_shot}_woverlap_{self.args.overlapping}_n_shots_analysis{S_all}.csv', index=False)
 
-            logging.info("----- Test has ended -----")
 
-            # save the accuracies dictionary into a csv file
-            #save_dir = self.args.evaluation_dir
-            #df = pd.DataFrame(list(accuracies.items()), columns=['n_shots', 'accuracy'])
-            #df.to_csv(self.args.evaluation_dir + f'{self.args.prefix}_{self.args.method}_n_shots_analysis{S_all}.csv', index=False)
+        logging.info("----- Test has ended -----")
 
+        
             # if self.args.evaluation:
             #     path = "results/test/{}/{}".format(self.args.dataset, self.args.arch)
             #     # name_file = path + '/{}.txt'.format(self.args.name_method)

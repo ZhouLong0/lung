@@ -4,9 +4,9 @@ EVAL:
     method: "paddle" #'simpleshot'                # ('paddle', 'baseline', 'soft_km')
     n_ways: 6                       # number of different classes represented in the query
     #n_query: 25                     # total number of images in query
-    shots: [3]                     # number of shots for which evaluation is performed
+    shots: [500]                     # number of shots for which evaluation is performed
     sampling:  'sliding_window' #'squares' #'squares'             # ('same_slice' |  | 'squares') sampling of the query
-    overlapping: True      
+    overlapping: False      
 
     number_tasks: "max" #10           # number of tasks to evaluate
     batch_size: 1                   # number of tasks per batch    # laisser à 1, c'est probablement cassé
@@ -42,11 +42,13 @@ DATA:
 
     n_classes: 6
     prefix: '6C'
-    support_split_file: '6C_support_augmented'  # .csv
+    support_split_file: '6C_support'  # .csv
+    support_split_file_only_augmented: '6C_support_only_augmented'  # .csv
     query_split_file: '6C_query'                # .csv
 
-    support_data_dir : 'data/augmented_data/'
-    query_data_dir : 'data/normalized_data/'
+
+    data_dir_augmented : 'data/augmented_data/'
+    data_dir : 'data/normalized_data/'
 
     features_dir: checkpoints/fewshot/resnet18/extracted_features/
     querysets_dir: checkpoints/fewshot/resnet18/query_sets/

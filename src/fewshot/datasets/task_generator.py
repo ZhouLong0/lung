@@ -89,7 +89,7 @@ class Tasks_Generator:
         }
 
 
-def generate_support_set(support_features_dict, shots):
+def generate_support_set(support_features_dict, support_features_dict_only_augmented,shots):
     """
     Given the support dataset and the number of shots, this function generates the support set for the few-shot learning task.
 
@@ -102,7 +102,8 @@ def generate_support_set(support_features_dict, shots):
         torch.tensor [1, S, 1]: The support set labels.
     """
     
-
+    np.random.seed(48)
+    
     x_support =[]
     y_support = []
 
@@ -110,11 +111,27 @@ def generate_support_set(support_features_dict, shots):
 
     for label in all_labels:
         indices = (support_features_dict['concat_labels'].eq(label)).nonzero(as_tuple=True)[0]
-        
-        random_indices = np.random.choice(indices, shots, replace=False)
-        for index in random_indices:
-            x_support.append(support_features_dict['concat_features'][index])
-            y_support.append(support_features_dict['concat_labels'][index])
+
+        # enough samples in not augmented dataset
+        if len(indices) >= shots:
+            random_indices = np.random.choice(indices, shots, replace=False)
+            for index in random_indices:
+                x_support.append(support_features_dict['concat_features'][index])
+                y_support.append(support_features_dict['concat_labels'][index])
+
+        # not enough samples in not augmented dataset
+        else:
+            # take all the samples from the not augmented dataset
+            for index in indices:
+                x_support.append(support_features_dict['concat_features'][index])
+                y_support.append(support_features_dict['concat_labels'][index])
+
+            # take the remaining samples from the augmented dataset
+            augmented_indices = (support_features_dict_only_augmented['concat_labels'].eq(label)).nonzero(as_tuple=True)[0]
+            random_indices = np.random.choice(augmented_indices, shots-len(indices), replace=False)
+            for index in random_indices:
+                x_support.append(support_features_dict_only_augmented['concat_features'][index])
+                y_support.append(support_features_dict_only_augmented['concat_labels'][index])
 
     return torch.stack(x_support).unsqueeze(0), torch.stack(y_support).unsqueeze(0).unsqueeze(-1)
 
