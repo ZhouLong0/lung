@@ -328,7 +328,7 @@ class PADDLE(KM):
         self.s_is_diag = True
         n_task, n_examples, n_ways = y_s_one_hot.size()
         feature_dim = support.size(2)
-        if self.covariance_used == "sans_S":
+        if self.covariance_used == "NONE":
             self.s = torch.ones(n_task, n_ways, feature_dim).to(self.device)
         elif self.covariance_used in ["S_sans_update", "S_updated"]:
             if self.s_use_all_train_set:

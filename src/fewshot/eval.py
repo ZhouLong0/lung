@@ -29,7 +29,7 @@ from sklearn.metrics import (
 )
 from src.fewshot.querysets_fullslide import extract_query_sets_full_slide_prediction
 from tqdm import tqdm
-from src.fewshot.display_my_predictions import display_prediction
+from src.fewshot.display_predictions import display_prediction
 import random
 import pickle
 import logging
@@ -83,56 +83,28 @@ class Evaluator:
             "=> Runnning full evaluation with method: {}".format(self.args.name_method)
         )
 
-
         # Load the model used as feature extractor
         load_checkpoint(model=model, model_path=self.args.features_extractor_path)
 
-        # # normalize
-        # basic_normalisation = False
-        # grayscale = False
-        # if self.args.normalisation_couleur == "reinhard":
-        #     ## Create and insert new reinard normalised images in the dataset (just change arg.data_path if already done)
-        #     ## new normalized imagaes in the folder */data/liver_normalized_reinhard
-        #     ## also change the arg.data_path to the new normalized one
-        #     norm_reinhard(args=self.args)
-
-        # ## for other normalisation methods just do it during the feature extraction
-        # elif self.args.normalisation_couleur == "basic":
-        #     basic_normalisation = True
-        # elif self.args.normalisation_couleur == "grayscale":
-        #     grayscale = True
-        # elif self.args.normalisation_couleur == "no":
-        #     pass
-        # else:
-        #     print("Unknown color normalisation:", self.args.normalisation_couleur)
-        #     raise Exception("Unknown color normalisation")
-
-        ## we want to create sliding_windows in the entire query image for the prediction
-        # if self.args.sampling == "sliding_window":  # predict on WSI
-        #     self.args.prediction = True
-        #     self.args.evaluation = False
-
-        # ## we only want to evaluate on the known patches of the query image
-        # elif self.args.sampling in ["same_slice", "squares"]:  # eval on known squares
-        #     self.args.prediction = False
-        #     self.args.evaluation = True
-
         ## load the df
         df_query = pd.read_csv(self.args.split_dir + self.args.query_split_file + '.csv').sample(frac = 1)
+
         df_support = pd.read_csv(self.args.split_dir + self.args.support_split_file + '.csv').sample(frac = 1)
         df_support_only_augmented = pd.read_csv(self.args.split_dir + self.args.support_split_file_only_augmented + '.csv').sample(frac = 1)
 
+        # create the datasets
+        query_dataset = LungSet(df_query, self.args.query_data_dir, file_name=True, predictions=self.args.prediction)
 
-        query_dataset = LungSet(df_query, self.args.data_dir, file_name=True)
         support_dataset = LungSet(df_support, self.args.data_dir, file_name=True)
         support_dataset_only_augmented = LungSet(df_support_only_augmented, self.args.data_dir_augmented, file_name=True)
 
-        ## ''' FEATURE EXTRACTION support'''
+
+        ## FEATURE EXTRACTION support
         ## Create a dictionary: extracted_features_dic_support = {
         ## 'concat_features': tensor([S, 512]),                                 transformed and extracted features of the support set
         ## 'concat_labels': tensor([S]),                                        labels of the support set
         ## 'concat_slices': tensor([S]): ['15_B', '85_M', ...],                 the name of the corresponding WSI
-        ## 'concat_patchs': tensor([S]): ['15_B_1_AM_0', '85_M_1_AM_0', ...]}   patch names of the support set
+        ## 'concat_patchs': tensor([S]): ['15_B_1_AM_0.jpg', '85_M_1_AM_0.jpg', ...]}   patch file names of the support set
         extracted_features_dic_support = extract_features(
             model=model,
             dataset=support_dataset,
@@ -140,7 +112,7 @@ class Evaluator:
             save_filename=self.args.support_split_file + '.plk'
         )
 
-        extract_features_dic_support_only_augmented = extract_features(
+        extracted_features_dic_support_only_augmented = extract_features(
             model=model,
             dataset=support_dataset_only_augmented,
             save_directory=self.args.features_dir,
@@ -152,7 +124,7 @@ class Evaluator:
         ## 'concat_features': tensor([Q, 512]),                                     transformed and extracted features of the support set
         ## 'concat_labels': tensor([Q]),                                            labels of the support set
         ## 'concat_slices': tensor([Q]): ['36_I', '36I', ...],                      the name of the corresponding WSI
-        ## 'concat_patchs': tensor([Q]): ['36_I_x_1_y_0', '36_I_x_1_y_3', ...]}     patch names of the support set
+        ## 'concat_patchs': tensor([Q]): ['36_I_x_1_y_0.jpg', '36_I_x_1_y_3.jpg', ...]}     patch file names of the support set
         extracted_features_dic_query = extract_features(
             model=model,
             dataset=query_dataset,
@@ -181,81 +153,30 @@ class Evaluator:
                     
             n_iter = len(compo_querysets["query_sets"])
 
-        #if self.args.evaluation:
-            # name_file = f'results/test/{self.args.dataset}/{self.args.arch}/{self.args.name_method}.txt'
-            # name_file = f"results/test/{self.args.dataset}/{self.args.arch}/{self.args.name_method}_{self.args.trainset_name}.txt"
-            # if os.path.isfile(name_file) == True:
-            #     f = open(name_file, "a")
-            #     print("Adding to already existing .txt file to avoid overwritting")
-            # else:
-            #     f = open(name_file, "w")
-            # if self.args.same_query_size:
-            #     type_n_query = "fixé"
-            # else:
-            #     type_n_query = "max"
-            # f.write("\n\n")
-            # f.write(f"lame {self.args.trainset_name},")
-            # if self.args.number_tasks != "max":
-            #     f.write(f"nb_tasks_{self.args.number_tasks},")
-            # if self.args.s_use_all_train_set:
-            #     s_sur_quoi = "sur train set entier"
-            # else:
-            #     s_sur_quoi = "sur support uniquement"
-            # # f.write(f" sampling={self.args.sampling}, avec data augmentation, {self.args.covariance_used} ({s_sur_quoi}), n_query={self.args.n_query} ({type_n_query}), {self.args.normalisation_couleur} color normalization [patch_size={self.args.patch_size}" +
-            # #         f", transform_size={self.args.transform_size}, random moyenné {nb_passages_pour_moyenner}x, pas de MinMaxScaler] \n\n")
-            # if self.args.method == "paddle":
-            #     f.write(
-            #         f"methode={self.args.method}, sampling={self.args.sampling}, {self.args.normalisation_couleur} color normalization, transform_size={self.args.transform_size}, n_query={self.args.n_query} ({type_n_query}) \n[patch_size={self.args.patch_size}"
-            #         + f", random moyenné {nb_passages_pour_moyenner}x, pas de MinMaxScaler, avec data augmentation, {self.args.covariance_used} ({s_sur_quoi})] \n"
-            #         + f"select_support_nb_elements={self.args.select_support_nb_elements}, predire_une_seule_classe={self.args.predire_une_seule_classe}, gamma={self.args.gamma}\n\n"
-            #     )
-
-            #     f.write(
-            #         "alpha        \t"
-            #         + "metric       \t"
-            #         + "\t".join([str(a) + "-shot  " for a in self.args.shots])
-            #         + "\n"
-            #     )
-            # else:
-            #     f.write(
-            #         f"methode={self.args.method}, sampling={self.args.sampling}, {self.args.normalisation_couleur} color normalization, transform_size={self.args.transform_size}, n_query={self.args.n_query} ({type_n_query}) \n[patch_size={self.args.patch_size}"
-            #         + f", random moyenné {nb_passages_pour_moyenner}x, pas de MinMaxScaler, avec data augmentation, {self.args.covariance_used} ({s_sur_quoi})] \n"
-            #         + f"select_support_nb_elements={self.args.select_support_nb_elements}, predire_une_seule_classe={self.args.predire_une_seule_classe}\n\n"
-            #     )
-
-            #     f.write(
-            #         "alpha        \t"
-            #         + "metric       \t"
-            #         + "\t".join([str(a) + "-shot  " for a in self.args.shots])
-            #         + "\n"
-            #     )
 
         if self.args.method != "paddle":
             self.args.alphas = [0]
             self.args.gamma = 1.0
 
+
         ## If we want to experiment for many values of alpha
         for alpha in self.args.alphas:
             self.args.alpha = alpha
-            accuracies = {}
+            n_shots = []
+            accuracies = []
+            f1_macro_scores = []
+            f1_weighted_scores = []
         
             ## if we want to do the experiment for many values of shots
             for n_shot in self.args.shots:
-                nb_tasks_real = 0
-                predictions_par_patch = {}
-        
                 global_truth = []
                 global_prediction = []
                 global_confidence = []
                 global_patch_order = []
 
-                # find lowest occurency
-                #counter = Counter(extracted_features_dic_support["concat_labels"].tolist())
-                #max_shots_not_augmented = min(counter.values())
-
 
                 # create the support set once for each task
-                x_support, y_support = generate_support_set(extracted_features_dic_support, extract_features_dic_support_only_augmented, n_shot)
+                x_support, y_support = generate_support_set(extracted_features_dic_support, extracted_features_dic_support_only_augmented, n_shot)
     
                 
                 ## save or load from quey_sets_patchsize_{self.args.patch_size}_squares_{self.args.trainset_name}/query/queryset.plk
@@ -305,7 +226,7 @@ class Evaluator:
                     ## Get the model (PADDLE) in general
                     method = self.get_method_builder(model=model)
 
-                    ## Run task
+            
                     ## Run the task with the method and returns:
                     ## logs: the logs of the method
                     ## truth: [window_size] the true labels of the task query set
@@ -324,9 +245,6 @@ class Evaluator:
                         logs, truth, pred, conf = method.run_task(
                             task_dic=tasks, shot=n_shot
                         )
-
-                    ## Task completed for the sliding window
-                    nb_tasks_real += 1
 
                     ## Save the predictions and confidences of each single patch and in order to reconstruct the predictions
                     global_prediction += pred
@@ -357,37 +275,35 @@ class Evaluator:
                     del method
                     del tasks
 
-                ## Reconstruction of the predictions using majority vote
-                ## construct each patch which prediction has been made, how many times
-                ## finaly by majority voting reconstruct the predictions and display it
-                ## saving the figure in results/predictions/trainset_name/predAnnotations/_alpha_{}_nshots_{}_covmatrix_{}_trainset_{supp_hospital}
-                # If in prediction mode (e.g. if we don't have ground truth)
+                # Reconstruction of the predictions using majority vote and display it
                 if self.args.prediction:
-                    for n in range(len(global_patch_order)):
-                        patch = global_patch_order[n]
-                        classe = global_prediction[n]
-                        _, _, _, i, _, j = patch.split("_")
-                        i, j = int(i), int(j)
-                        if not (i, j) in predictions_par_patch:
-                            predictions_par_patch[i, j] = [
-                                0 for c in range(self.args.n_ways)
-                            ]
-                        predictions_par_patch[i, j][classe] += 1
+                    predictions = {}
+
+                    for i, patch in enumerate(global_patch_order):
+                        if patch not in predictions:
+                            predictions[patch] = []
+                        predictions[patch].append(global_prediction[i])
+
+                    for patch in predictions:
+                        predictions[patch] = max(set(predictions[patch]), key=predictions[patch].count)
+
+                    # predictions = list(predictions.values())
+                    #truth = list(truth.values())
+                    
 
                     display_prediction(
                         compo_querysets,
-                        predictions_par_patch,
-                        self.args,
-                        alpha,
-                        n_shot,
-                        random_number,
+                        predictions,
+                        save_dir=self.args.prediction_dir + self.args.query_split_file + '/',
+                        save_name=f'{self.args.prefix}_{self.args.method}_{alpha}_{str(n_shot)}_shots_woverlap_{self.args.overlapping}_{self.args.covariance_used}.png',
+                        title = f'{self.args.query_split_file}_{self.args.method}_{alpha}_{str(n_shot)}_shots_woverlap_{self.args.overlapping}_{self.args.covariance_used}'
                     )
 
 
                 # create the confusion matrix and the classification report
-                if self.args.evaluation and (not self.args.overlapping):
+                elif self.args.evaluation and (not self.args.overlapping):
                     S_all = '' if not self.args.s_use_all_train_set else '_S_all'
-                    save_dir = self.args.evaluation_dir + f'/{self.args.prefix}_{self.args.method}_{alpha}_{str(n_shot)}_shots{S_all}/'
+                    save_dir = self.args.evaluation_dir + f'/{self.args.prefix}_{self.args.method}_{alpha}_{str(n_shot)}_shots_{self.args.covariance_used}/'
 
                     if not os.path.exists(save_dir):
                         os.makedirs(save_dir, exist_ok=True)
@@ -397,14 +313,21 @@ class Evaluator:
                         f.write(classification_report(y_true=global_truth, y_pred=global_prediction, target_names=['P', 'H', 'Né', 'TL', 'Fi', 'T']))
 
                     accuracy = accuracy_score(global_truth, global_prediction)
-                    accuracies[n_shot] = accuracy
+                    f1_score_macro = f1_score(global_truth, global_prediction, average="macro")
+                    f1_score_weighted = f1_score(global_truth, global_prediction, average="weighted")
+
+                    n_shots.append(n_shot)
+                    accuracies.append(accuracy)
+                    f1_macro_scores.append(f1_score_macro)
+                    f1_weighted_scores.append(f1_score_weighted)
+
 
                     print(f"Accuracy for {n_shot}-shot: {accuracy}")
 
 
                 elif self.args.evaluation and self.args.overlapping:
                     S_all = '' if not self.args.s_use_all_train_set else '_S_all'
-                    save_dir = self.args.evaluation_dir + f'/{self.args.prefix}_{self.args.method}_{alpha}_{str(n_shot)}_shots{S_all}_woverlapping/'
+                    save_dir = self.args.evaluation_dir + f'/{self.args.prefix}_{self.args.method}_{alpha}_{str(n_shot)}_shots_woverlapping_{self.args.covariance_used}/'
                     
                     if not os.path.exists(save_dir):
                         os.makedirs(save_dir, exist_ok=True)
@@ -429,7 +352,13 @@ class Evaluator:
                         f.write(classification_report(y_true=truth, y_pred=predictions, target_names=['P', 'H', 'Né', 'TL', 'Fi', 'T']))
 
                     accuracy = accuracy_score(truth, predictions)
-                    accuracies[n_shot] = accuracy
+                    f1_score_macro = f1_score(truth, predictions, average="macro")
+                    f1_score_weighted = f1_score(truth, predictions, average="weighted")
+
+                    n_shots.append(n_shot)
+                    accuracies.append(accuracy)
+                    f1_macro_scores.append(f1_score_macro)
+                    f1_weighted_scores.append(f1_score_weighted)
 
                     print(f"Accuracy for {n_shot}-shot with overlapping: {accuracy}")
 
@@ -525,18 +454,20 @@ class Evaluator:
                     #         plt.savefig(f"histograms/hist_nshots_{shot}.png")
                     #         plt.close()
 
-            # if self.args.evaluation:
-            #     print(accuracies)
-            #     #mean_accuracies = np.asarray(accuracies.values).mean()
-            #     #print(mean_accuracies)
-            # else:
-            #     mean_accuracies = "No accuracy here, this is a prediction"
-
             
             #save the accuracies dictionary into a csv file
-            save_dir = self.args.evaluation_dir
-            df = pd.DataFrame(list(accuracies.items()), columns=['n_shots', 'accuracy'])
-            df.to_csv(self.args.evaluation_dir + f'{self.args.prefix}_{self.args.method}_{n_shot}_woverlap_{self.args.overlapping}_n_shots_analysis{S_all}.csv', index=False)
+            if self.args.evaluation:
+                save_dir = self.args.evaluation_dir
+
+                # create a dataframe where the keys are the n_shots and the values are the accuracies, f1 macro and f1 weighted scores
+                df = pd.DataFrame({
+                    'n_shots': n_shots,
+                    'accuracies': accuracies,
+                    'f1_macro_scores': f1_macro_scores,
+                    'f1_weighted_scores': f1_weighted_scores
+                })
+
+                df.to_csv(self.args.evaluation_dir + f'{self.args.prefix}_{self.args.method}_woverlap_{self.args.overlapping}_{alpha}_{self.args.covariance_used}_analysis.csv', index=False)
 
 
         logging.info("----- Test has ended -----")

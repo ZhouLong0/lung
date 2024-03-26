@@ -3,7 +3,7 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 
 class LungSet(Dataset):
-    def __init__(self, dataframe, data_path, transform = None, file_name = False):
+    def __init__(self, dataframe, data_path, transform = None, file_name = False, predictions = False):
         '''
         Dataset for the lung dataset from a dataframe
         
@@ -24,6 +24,7 @@ class LungSet(Dataset):
         self.data_path = data_path
         self.transform = transforms.Compose([transforms.ToTensor()])
         self.file_name = file_name
+        self.predictions = predictions
         
     def __len__(self):
         return len(self.df)
@@ -36,14 +37,20 @@ class LungSet(Dataset):
             (tensor) image: image of the idx-th image
             (int) label: label of the idx-th image
         '''
-        img_name = self.data_path+'/'+self.df['classe'].iloc[idx]+'/'+self.df['patch'].iloc[idx]               
-        image = Image.open(img_name).convert('RGB')
+
+        if not self.predictions:
+            img_name = self.data_path+'/'+self.df['classe'].iloc[idx]+'/'+self.df['patch'].iloc[idx]               
+            image = Image.open(img_name).convert('RGB')
+        else:
+            img_name = self.data_path+'/'+self.df['patch'].iloc[idx]
+            image = Image.open(img_name).convert('RGB')
 
         if self.transform:
             image = self.transform(image)
-
         else:
             image = transforms.ToTensor()(image)
+
+
 
         if self.file_name:
             return image, self.df['label'].iloc[idx], self.df['patch'].iloc[idx]
