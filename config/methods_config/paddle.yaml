@@ -1,6 +1,6 @@
 METHOD:
   name_method: 'PADDLE'
   iter: 15
-  alphas: ['adaptatif_1000%','adaptatif_5000%', 1250]      # nombre ou "adaptatif_<x>%"
+  alphas: ['adaptatif_1000%','adaptatif_5000%', 1250]      # number or "adaptatif_<x>%"
   gamma: 1.0
   

@@ -92,6 +92,7 @@ class Evaluator:
         df_support = pd.read_csv(self.args.split_dir + self.args.support_split_file + '.csv').sample(frac = 1)
         df_support_only_augmented = pd.read_csv(self.args.split_dir + self.args.support_split_file_only_augmented + '.csv').sample(frac = 1)
 
+
         # create the datasets
         query_dataset = LungSet(df_query, self.args.query_data_dir, file_name=True, predictions=self.args.prediction)
 
@@ -166,6 +167,7 @@ class Evaluator:
             accuracies = []
             f1_macro_scores = []
             f1_weighted_scores = []
+            balanced_accuracy_scores = []
         
             ## if we want to do the experiment for many values of shots
             for n_shot in self.args.shots:
@@ -315,11 +317,13 @@ class Evaluator:
                     accuracy = accuracy_score(global_truth, global_prediction)
                     f1_score_macro = f1_score(global_truth, global_prediction, average="macro")
                     f1_score_weighted = f1_score(global_truth, global_prediction, average="weighted")
+                    balanced_accuracy = balanced_accuracy_score(global_truth, global_prediction)
 
                     n_shots.append(n_shot)
                     accuracies.append(accuracy)
                     f1_macro_scores.append(f1_score_macro)
                     f1_weighted_scores.append(f1_score_weighted)
+                    balanced_accuracy_scores.append(balanced_accuracy)
 
 
                     print(f"Accuracy for {n_shot}-shot: {accuracy}")
@@ -354,106 +358,18 @@ class Evaluator:
                     accuracy = accuracy_score(truth, predictions)
                     f1_score_macro = f1_score(truth, predictions, average="macro")
                     f1_score_weighted = f1_score(truth, predictions, average="weighted")
-
+                    balanced_accuracy = balanced_accuracy_score(truth, predictions)
+                    
                     n_shots.append(n_shot)
                     accuracies.append(accuracy)
                     f1_macro_scores.append(f1_score_macro)
                     f1_weighted_scores.append(f1_score_weighted)
+                    balanced_accuracy_scores.append(balanced_accuracy)
 
                     print(f"Accuracy for {n_shot}-shot with overlapping: {accuracy}")
 
                 else:
                     raise ValueError("To be implemented")
-
-                    # # on calcule les métriques
-                    # all_metrics_list["accuracy"].append(
-                    #     accuracy_score(global_truth, global_prediction)
-                    # )
-                    # all_metrics_list["f1_micro"].append(
-                    #     f1_score(global_truth, global_prediction, average="micro")
-                    # )
-                    # all_metrics_list["f1_macro"].append(
-                    #     f1_score(global_truth, global_prediction, average="macro")
-                    # )
-                    # all_metrics_list["f1_weighted"].append(
-                    #     f1_score(global_truth, global_prediction, average="weighted")
-                    # )
-                    # all_metrics_list["balanced_acc"].append(
-                    #     balanced_accuracy_score(global_truth, global_prediction)
-                    # )
-
-                    # # on calcule la matrice de confusion
-                    # cf_matrix = confusion_matrix(
-                    #     global_truth,
-                    #     global_prediction,
-                    #     labels=list(range(self.args.n_ways)),
-                    #     normalize="true",
-                    # )
-
-                    # # on crée l'image de la matrice de confusion
-                    # legend = f"Matrice de confusion, {self.args.covariance_used}, alpha=n_query={self.args.n_query} ({type_n_query}), n_shots={shot}, {self.args.normalisation_couleur}_colornorm° ({nb_passages_pour_moyenner}*{nb_tasks_real//nb_passages_pour_moyenner} tasks)"
-                    # if self.args.sampling in ["sliding_window", "squares"]:
-                    #     filename = f"conf_matrix_iters_{self.args.iter}_lame_{self.args.trainset_name}_{self.args.sampling}_windowsize_{self.args.window_size}_alpha_{alpha}_nshots_{shot}_transformsize_{self.args.transform_size}_normalization_{self.args.normalisation_couleur}_covmatrix_{self.args.covariance_used}"
-                    #     if self.args.covariance_used == "S_full":
-                    #         if self.args.s_use_all_train_set:
-                    #             filename += "_sur_alltrainset"
-                    #         else:
-                    #             filename += "_sur_justesupport"
-                    # else:
-                    #     filename = f"conf_matrix_{self.args.covariance_used}_nquery_{self.args.n_query}_samequerysize_{self.args.same_query_size}_patchsize_{self.args.patch_size}_transformsize_{self.args.transform_size}_colornorm_{self.args.normalisation_couleur}_nshot_{shot}_trainset_{self.args.support_hospital}"
-                    # if self.args.number_tasks != "max":
-                    #     filename = f"nb_tasks_{self.args.number_tasks}_" + filename
-                    # if self.args.select_support_nb_elements != False:
-                    #     filename += (
-                    #         f"_select_support_{self.args.select_support_nb_elements}"
-                    #     )
-                    # if self.args.predire_une_seule_classe:
-                    #     filename += "_predire_une_seule_classe"
-                    # create_confusion_matrix(legend, filename, cf_matrix)
-                    # #super_logger.info(f"Support : {patients_list}")
-
-                    # histogrammes = False
-                    # if histogrammes:
-                    #     # On calcule et trace l'histogramme de confiance
-                    #     list_classes = ["AM", "AN", "NT", "RE", "VE"]
-                    #     une_figure = False
-                    #     graph_log = False
-                    #     if une_figure:
-                    #         plt.figure(figsize=(12, 20))
-                    #         fig, axs = plt.subplots(self.args.n_ways, 1, sharex=True)
-                    #     for k in range(self.args.n_ways):
-                    #         l = [
-                    #             global_confidence[i]
-                    #             for i in range(len(global_confidence))
-                    #             if global_prediction[i] == k
-                    #         ]
-                    #         if une_figure:
-                    #             axs[k].hist(l, bins=[x / 50 for x in range(51)])
-                    #             axs[k].set_title(
-                    #                 f"Confidence when predicted_class={list_classes[k]}",
-                    #                 y=1.0,
-                    #                 pad=-14,
-                    #             )
-                    #         else:
-                    #             plt.figure(figsize=(12, 7))
-                    #             if graph_log:
-                    #                 plt.hist(
-                    #                     l, bins=[x / 50 for x in range(51)], log=True
-                    #                 )
-                    #                 plt.savefig(
-                    #                     f"histograms/hist_log_nshots_{shot}_predclass_{list_classes[k]}.png"
-                    #                 )
-                    #                 plt.close()
-                    #             else:
-                    #                 plt.hist(l, bins=[x / 50 for x in range(51)])
-                    #                 plt.savefig(
-                    #                     f"histograms/hist_linear_nshots_{shot}_predclass_{list_classes[k]}.png"
-                    #                 )
-                    #                 plt.close()
-                    #     if une_figure:
-                    #         plt.savefig(f"histograms/hist_nshots_{shot}.png")
-                    #         plt.close()
-
             
             #save the accuracies dictionary into a csv file
             if self.args.evaluation:
@@ -462,87 +378,16 @@ class Evaluator:
                 # create a dataframe where the keys are the n_shots and the values are the accuracies, f1 macro and f1 weighted scores
                 df = pd.DataFrame({
                     'n_shots': n_shots,
-                    'accuracies': accuracies,
-                    'f1_macro_scores': f1_macro_scores,
-                    'f1_weighted_scores': f1_weighted_scores
+                    'accuracy': accuracies,
+                    'f1_macro': f1_macro_scores,
+                    'f1_weighted': f1_weighted_scores,
+                    'balanced_accuracy': balanced_accuracy_scores
                 })
 
                 df.to_csv(self.args.evaluation_dir + f'{self.args.prefix}_{self.args.method}_woverlap_{self.args.overlapping}_{alpha}_{self.args.covariance_used}_analysis.csv', index=False)
 
 
         logging.info("----- Test has ended -----")
-
-        
-            # if self.args.evaluation:
-            #     path = "results/test/{}/{}".format(self.args.dataset, self.args.arch)
-            #     # name_file = path + '/{}.txt'.format(self.args.name_method)
-            #     name_file = f"results/test/{self.args.dataset}/{self.args.arch}/{self.args.name_method}_{self.args.trainset_name}.txt"
-            #     if not os.path.exists(path):
-            #         os.makedirs(path)
-            #     if os.path.isfile(name_file) == True:
-            #         f = open(name_file, "a")
-            #         print("Adding to already existing .txt file to avoid overwritting")
-            #     else:
-            #         f = open(name_file, "w")
-
-            #     for metric_name in all_metrics:
-            #         f.write(
-            #             str(param)
-            #             + " " * (14 - len(str(param)))
-            #             + "\t"
-            #             + metric_name
-            #             + " " * (12 - len(metric_name))
-            #             + "\t"
-            #         )
-            #         for shot in self.args.shots:
-            #             self.logger.info(
-            #                 "{}-shot mean {} over {} tasks: {}".format(
-            #                     shot,
-            #                     metric_name,
-            #                     self.args.number_tasks,
-            #                     all_metrics_list[metric_name][
-            #                         self.args.shots.index(shot)
-            #                     ],
-            #                 )
-            #             )
-            #             f.write(
-            #                 str(
-            #                     round(
-            #                         all_metrics_list[metric_name][
-            #                             self.args.shots.index(shot)
-            #                         ],
-            #                         3,
-            #                     )
-            #                 )
-            #                 + "     \t"
-            #             )
-            #         f.write("\n")
-
-        # if self.args.evaluation:
-        #     f.close()
-
-        # super_logger.info(
-        #     "\t Color normalisation: {}".format(self.args.normalisation_couleur)
-        # )
-        # super_logger.info("\t Sampling: {}".format(self.args.sampling))
-        # # super_logger.info(
-        # #     "\t Features parameters: {}".format(
-        # #         "__support_" + self.args.support_hospital
-        # #     )
-        # # )
-        # super_logger.info(f"\t Method: {self.args.method}")
-        # #super_logger.info(f"\t Support: {patients_list}")
-        # super_logger.info(f"\t dataset: {self.args.dataset}")
-        # super_logger.info(f"\t architecture: {self.args.arch}")
-        # super_logger.info(f"\t method_name: {self.args.name_method}")
-        # super_logger.info(f"\t trainset_name: {self.args.trainset_name}")
-        # super_logger.info(f"\t dataset: {self.args.dataset}")
-        # super_logger.info(
-        #     f"\t alpha={self.args.alpha}, gamma={self.args.gamma}, shots={self.args.shots}"
-        # )
-        # super_logger.info(
-        #     f"This is an informational message:  Test_{random_number} Finished! \n"
-        # )
         return None
 
 

@@ -359,15 +359,15 @@ def get_log_file(log_path, dataset, backbone, method, sampling):
 def extract_features(model, dataset, save_directory, save_filename):
     """
     inputs:
-        model : The model that perform the feature extraction
-        dataset : The dataset to extract features from, __getitem__ should return (input, label, image_fila_name)
-        save_directory : The directory to save the extracted features
-        save_filename : The filename to save the extracted features
+        model (model) : The model that perform the feature extraction
+        dataset (Dataset): The dataset to extract features from, __getitem__ should return (input, label, image_file_name)
+        save_directory (string): The directory to save the extracted features
+        save_filename (string): The filename to save the extracted features
         
     returns :
         extracted_features_dic : Dictionnary containing {
-            'concat_features' : list of extracted features of the dataset,
-            'concat_labels' : list of labels of the dataset,
+            'concat_features' (torch([S, d])): extracted features of the dataset,
+            'concat_labels' (torch([S])): labels of the dataset,
             'concat_slices' : list of slides of the patch,
             'concat_patchs' : list of patch's filename
         }

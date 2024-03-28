@@ -14,8 +14,7 @@ def display_prediction(compo_querysets, predictions, save_dir, save_name, title)
     
     """
     # predictions_folder = 'results/predictions/'+args.trainset_name
-    # if not os.path.exists(predictions_folder):
-    #     os.mkdir(predictions_folder)
+    
 
     T_COLOR = (255,0,0) 	 # red 
     FI_COLOR = (100, 216, 230) #light coral 	
@@ -55,5 +54,8 @@ def display_prediction(compo_querysets, predictions, save_dir, save_name, title)
     plt.title(title)
 
     plt.imshow(global_predictions)
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
     plt.savefig(os.path.join(save_dir, save_name))
     
